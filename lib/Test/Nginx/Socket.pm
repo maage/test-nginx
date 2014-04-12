@@ -2813,6 +2813,14 @@ value. Also used when a request is split in packets.
 Skip the tests in the current test block in the "check leak" testing mode
 (i.e, with C<TEST_NGINX_CHECK_LEAK>=1).
 
+=head2 must_exit
+
+Nginx must exit with set exit value. The value must be other than 0.
+Normal request and response cycle is not done.
+
+This is meant to test bogus configuration is noticed and given proper
+error.
+
 =head1 Environment variables
 
 All environment variables starting with C<TEST_NGINX_> are expanded in the
