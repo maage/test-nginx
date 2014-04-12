@@ -284,6 +284,15 @@ sub master_process_enabled (@) {
     }
 }
 
+our $MustExit;
+
+sub must_exit (@) {
+    if (@_) {
+        $MustExit = shift;
+    }
+    $MustExit;
+}
+
 our @EXPORT_OK = qw(
     check_accum_error_log
     is_running
@@ -337,6 +346,7 @@ our @EXPORT_OK = qw(
     server_port
     server_port_for_client
     no_nginx_manager
+    must_exit
 );
 
 
@@ -979,6 +989,7 @@ sub run_test ($) {
     if ($block->log_level) {
         $LogLevel = $block->log_level;
     }
+    must_exit($block->must_exit);
 
     if (!defined $config) {
         if (!$NoNginxManager) {
@@ -1466,15 +1477,35 @@ start_nginx:
                 sleep $TestNginxSleep;
 
             } else {
-                if (system($cmd) != 0) {
+                system($cmd);
+                if ($? != 0) {
+                    my ($failed_to_execute, $exit_signal, $exit_coredump, $exit_value) = (0, 0, 0, 0);
+                    if ($? == -1) {
+                        $failed_to_execute = 1;
+                    }
+                    elsif ($? & 127) {
+                        $exit_signal = $? & 127;
+                        $exit_coredump = $? & 128;
+                    }
+                    else {
+                        $exit_value = $? >> 8;
+                    }
                     if ($ENV{TEST_NGINX_IGNORE_MISSING_DIRECTIVES} and
                             my $directive = check_if_missing_directives())
                     {
                         $dry_run = "the lack of directive $directive";
-
+                    } elsif ($MustExit) {
+                        #Test::More::is($failed_to_execute, 0, "$name - execute ok");
+                        #Test::More::is($exit_signal, 0, "$name - exit without signal");
+                        #Test::More::is($exit_coredump, 0, "$name - exit without coredump");
+                        Test::More::is($exit_value, $MustExit, "$name - exit status ok");
+                        return;
                     } else {
                         bail_out("$name - Cannot start nginx using command \"$cmd\".");
                     }
+                } elsif ($MustExit) {
+                    Test::More::is($?, $MustExit, "$name - exit status ok");
+                    return;
                 }
             }
 
